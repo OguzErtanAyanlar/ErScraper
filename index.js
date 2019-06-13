@@ -39,9 +39,30 @@ function handleRequest(req, res) {
     });
 }
 
+function showTrackedCurrencies(res) {
+    const conversionArray = [];
+
+    for (const conversion of Object.values(ErScraper.trackedConversions)) {
+        if (conversion.rate != null) {
+            conversionArray.push(conversion);
+        }
+    }
+
+    if (!conversionArray.length) {
+        res.json({"state": "There aren't any tracked conversions."});
+        return;
+    }
+
+    res.json(conversionArray);
+}
+
 function registerRoutes() {
     app.get('/', function (req, res) {
-        res.end("ErScraper 0.1");
+        res.json("ErScraper 0.1");
+    });
+
+    app.get('/all', function (req, res) {
+        showTrackedCurrencies(res);
     });
 
     app.get('/*', function (req, res) {

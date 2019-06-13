@@ -5,11 +5,11 @@ const moment = require("moment/moment");
 const self = {
     browser: null,
 
-    trackedConversions: {},
-    invalidRoutes: [],
-
     baseURL: "https://investing.com/currencies/",
     rateElementID: 'last_last',
+
+    trackedConversions: {},
+    invalidRoutes: [],
 
     launchBrowser: async () => {
         console.log("Launching browser.");
@@ -100,6 +100,11 @@ const self = {
 
         return true;
     },
+
+    stop: async () => {
+        await self.browser.close();
+        console.log("Browser closed !")
+    }
 };
 
 module.exports = self;
