@@ -13,12 +13,12 @@ const self = {
 
     launchBrowser: async () => {
         console.log("Launching browser.");
-        self.browser = await puppeteer.launch({headless: true});
+        self.browser = await puppeteer.launch({headless: false});
         console.log("Browser is up");
     },
 
-    scrapeLivePrice: async (currencyFrom, currencyTo, conversionName) => {
-        self.trackedConversions[conversionName] = new Conversion(currencyFrom, currencyTo, null);
+    scrapeLivePrice: async (currencyFrom, currencyTo, conversionName, callback, invalidRoutesCallback) => {
+        self.trackedConversions[conversionName] = new Conversion(currencyFrom, currencyTo, null, await moment().valueOf(), null, true);
 
         console.log("Creating new tab.");
         const page = await self.browser.newPage();
@@ -33,24 +33,28 @@ const self = {
             console.log("404 on target page.");
             delete self.trackedConversions[conversionName];
             await page.close();
+            invalidRoutesCallback(conversionName);
             return false; // instead throw error ?
         }
 
         console.log("Target page loaded.");
 
         await page.exposeFunction('livePriceChangeCallback', self.livePriceChangeCallback);
+        await page.exposeFunction('callback', callback);
 
         self.trackedConversions[conversionName].rate = await page.evaluate((conversionName, rateElementID) => {
             // Observe text change on currency rate
+
             const observer = new MutationObserver((mutations) => {
                 for (const mutation of mutations) {
-                    self.livePriceChangeCallback(mutation.removedNodes[0].textContent, mutation.addedNodes[0].textContent, conversionName);
+                    window.callback(parseFloat(mutation.removedNodes[0].textContent), parseFloat(mutation.addedNodes[0].textContent), conversionName);
+                    self.livePriceChangeCallback(parseFloat(mutation.removedNodes[0].textContent), parseFloat(mutation.addedNodes[0].textContent), conversionName);
                 }
             });
 
             observer.observe(document.getElementById(rateElementID), {childList: true});
 
-            return document.getElementById(rateElementID).innerText;
+            return parseFloat(document.getElementById(rateElementID).innerText);
         }, conversionName, self.rateElementID);
 
         self.trackedConversions[conversionName].lastUpdateTimestamp = await moment().valueOf();
@@ -66,7 +70,7 @@ const self = {
         }
     },
 
-    trackTuple: async (tuple, res, req, inTrackedConversionsCallback, notTrackingCallback) => {
+    trackTuple: async (tuple, res, req, inTrackedConversionsCallback, notTrackingCallback, priceChangeCallback, invalidRoutesCallback) => {
         // Currencies must be 3 letters according to ISO standard.
         if (tuple.length !== 7 || self.invalidRoutes.includes(tuple)) {
             throw new Error("Currency does not exists !");
@@ -80,7 +84,7 @@ const self = {
         if (tuple in self.trackedConversions) {
             inTrackedConversionsCallback();
         } else {
-            self.scrapeLivePrice(currencyFrom, currencyTo, tuple).then(function (exists) {
+            self.scrapeLivePrice(currencyFrom, currencyTo, tuple, priceChangeCallback, invalidRoutesCallback).then(function (exists) {
                 if (!exists) { // We got 404, no need to check for this route again, just show not exists in json.
                     self.invalidRoutes.push(tuple);
                 }
@@ -89,7 +93,7 @@ const self = {
                 return false;
             });
 
-            notTrackingCallback();
+            notTrackingCallback(tuple);
         }
 
         return true;

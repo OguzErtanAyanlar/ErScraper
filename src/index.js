@@ -1,6 +1,9 @@
-const ErScraper = require("./src/core/erscraper");
+const ErScraper = require("./core/erscraper");
 const express = require('express');
 const app = express();
+const databaseService = require("./core/database_service");
+
+const savedConversions = {};
 
 function handleRequest(req, res) {
     const conversionName = req.originalUrl.toLowerCase().substring(1);
@@ -11,6 +14,7 @@ function handleRequest(req, res) {
     const conversionArray = [];
     const promiseArray = [];
 
+    let notInSaved = false;
     let notTracking = false;
 
     for (const tuple of multiQuery) {
@@ -20,19 +24,44 @@ function handleRequest(req, res) {
             // Add to conversion array if we already tracking. Rate may be null.
             if (conversion.rate !== null) {
                 conversionArray.push(conversion);
+            } else {
+                if (tuple in savedConversions) {
+                    conversionArray.push(savedConversions[tuple]);
+                } else {
+                    notInSaved = true;
+                }
             }
-        }, function () {
-            notTracking = true;
+        }, function (conversionName) {
+            console.log("Not tracking: " + conversionName);
+
+            if (tuple in savedConversions) {
+                conversionArray.push(savedConversions[tuple]);
+            } else {
+                notTracking = true;
+            }
+        }, function (oldValue, newValue, conversionName) {
+            if (oldValue !== newValue) {
+                databaseService.insertConversion(ErScraper.trackedConversions[conversionName], function (result, error) {
+                    savedConversions[conversionName] = ErScraper.trackedConversions[conversionName];
+                    console.log(result);
+                })
+            }
+        }, function (conversionName) {
+            databaseService.insertInvalidRoute(conversionName, function (result, error) {
+                console.log(result);
+            });
         });
 
         promiseArray.push(promise);
     }
 
     Promise.all(promiseArray).then(function () { // To make sure callbacks are ran on trackTuple so notTracking is correct.
-        if (notTracking) {
+        if (notInSaved) {
+            res.json({"state": "Conversion(s) are still loading, if the conversion(s) are valid you will see it when we finish our initial tracking."});
+        } else if (notTracking) {
             res.json({"state": "Started tracking conversion(s), if the conversion(s) are valid you will see it when we finish our initial tracking."});
         } else {
-            conversionArray.length === multiQuery.length ? res.json(conversionArray) : res.json({"state": "Conversion(s) are still loading, if the conversion(s) are valid you will see it when we finish our initial tracking."});
+            res.json(conversionArray);
         }
     }).catch(function (reason) {
         res.json({"state": reason.toString().substring(7)});
@@ -61,7 +90,7 @@ function registerRoutes() {
         res.json("ErScraper 0.1");
     });
 
-    app.get('/all', function (req, res) {
+    app.get('/tracking', function (req, res) {
         showTrackedCurrencies(res);
     });
 
@@ -83,6 +112,16 @@ async function initializeServer() {
 ErScraper.initialize().then(function (status) {
     if (status) {
         console.log("Scraper initialized successfully !");
+
+        databaseService.getLatestConversions(function (result, error) {
+            for (const conversion of result) {
+                savedConversions[conversion.currencyFrom + "-" + conversion.currencyTo] = conversion;
+            }
+        });
+
+        databaseService.getInvalidRoutes(function (result, error) {
+            ErScraper.invalidRoutes = result;
+        });
 
         registerRoutes();
 

@@ -1,9 +1,27 @@
 module.exports = class Conversion {
-    constructor(currencyFrom, currencyTo, rate, lastUpdateTimestamp) {
+    constructor(currencyFrom, currencyTo, rate, createdAtTimestamp, lastUpdateTimestamp, isTracking) {
         this._currencyFrom = currencyFrom;
         this._currencyTo = currencyTo;
         this._rate = rate;
+        this._createdAtTimestamp = createdAtTimestamp;
         this._lastUpdateTimestamp = lastUpdateTimestamp;
+        this._isTracking = isTracking;
+    }
+
+    get isTracking() {
+        return this._isTracking;
+    }
+
+    set isTracking(isTracking) {
+        this._isTracking = isTracking;
+    }
+
+    get createdAtTimestamp() {
+        return this._createdAtTimestamp;
+    }
+
+    set createdAtTimestamp(createdAtTimestamp) {
+        this._createdAtTimestamp = createdAtTimestamp;
     }
 
     get currencyFrom() {
