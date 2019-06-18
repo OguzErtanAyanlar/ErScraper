@@ -24,8 +24,8 @@ const self = {
     insertConversion: (conversion, callback) => {
         databaseConnection.query("INSERT INTO Conversions SET Conversions.currencyFrom = ?, Conversions.currencyTo = ?, Conversions.rate = ?, Conversions.createdAtTimestamp = ?", [conversion.currencyFrom, conversion.currencyTo, conversion.rate, conversion.lastUpdateTimestamp], function (error, result) {
             if (error) {
-                callback(null, error);
                 console.log(error);
+                callback(null, error);
                 return;
             }
 
@@ -60,6 +60,18 @@ const self = {
             }
 
             callback(invalidRoutes, null);
+        });
+    },
+
+    getLatestConversion: (conversionName, callback) => {
+        databaseConnection.query("SELECT * FROM Conversions C1 WHERE C1.currencyFrom = ? AND C1.currencyTo = ? AND C1.createdAtTimestamp = (SELECT MAX(createdAtTimestamp) FROM Conversions C2 WHERE C1.currencyFrom = C2.currencyFrom AND C1.currencyTo = C2.currencyTo)", [conversionName.substring(0, 3), conversionName.substring(4)],function (error, result) {
+            if (error) {
+                callback(null, error);
+                console.log(error);
+                return;
+            }
+
+            result[0] ? callback(new Conversion(result[0].currencyFrom, result[0].currencyTo, result[0].rate, result[0].createdAtTimestamp, result[0].createdAtTimestamp, false), null) : callback(null, null);
         });
     },
 };

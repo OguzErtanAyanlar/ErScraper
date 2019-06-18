@@ -26,8 +26,19 @@ const self = {
         console.log("Setting viewport.");
         await page.setViewport({width: 1920, height: 926});
 
+        // TODO: TEST IF EVERYTHING WORKS CORRECTLY AND IT WONT CAUSE MORE CPU OR RAM USAGE
+        await page.setRequestInterception(true);
+
+        page.on('request', request => {
+            if (['image', 'stylesheet', 'font'].indexOf(request.resourceType()) !== -1) {
+                request.abort();
+            } else {
+                request.continue();
+            }
+        });
+
         console.log("Going to target page.");
-        const response = await page.goto(self.baseURL + conversionName);
+        const response = await page.goto(self.baseURL + conversionName, {waitUntil: 'domcontentloaded', timeout: 0});
 
         if (response.status() === 404) {
             console.log("404 on target page.");
@@ -36,6 +47,8 @@ const self = {
             invalidRoutesCallback(conversionName);
             return false; // instead throw error ?
         }
+
+        // await page._client.send("Page.stopLoading"); ????
 
         console.log("Target page loaded.");
 
@@ -47,17 +60,19 @@ const self = {
 
             const observer = new MutationObserver((mutations) => {
                 for (const mutation of mutations) {
-                    window.callback(parseFloat(mutation.removedNodes[0].textContent), parseFloat(mutation.addedNodes[0].textContent), conversionName);
-                    self.livePriceChangeCallback(parseFloat(mutation.removedNodes[0].textContent), parseFloat(mutation.addedNodes[0].textContent), conversionName);
+                    window.callback(parseFloat(mutation.removedNodes[0].textContent.replace(/,/g, '')), parseFloat(mutation.addedNodes[0].textContent.replace(/,/g, '')), conversionName);
+                    self.livePriceChangeCallback(parseFloat(mutation.removedNodes[0].textContent.replace(/,/g, '')), parseFloat(mutation.addedNodes[0].textContent.replace(/,/g, '')), conversionName);
                 }
             });
 
             observer.observe(document.getElementById(rateElementID), {childList: true});
 
-            return parseFloat(document.getElementById(rateElementID).innerText);
+            return parseFloat(document.getElementById(rateElementID).innerText.replace(/,/g, ''));
         }, conversionName, self.rateElementID);
 
         self.trackedConversions[conversionName].lastUpdateTimestamp = await moment().valueOf();
+
+        callback(null, null, conversionName);
 
         return true;
     },
