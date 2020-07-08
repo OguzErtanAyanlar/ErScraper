@@ -16,8 +16,11 @@ name: Lint Code Base
 #############################
 on:
   push:
-    branches-ignore:
-      - 'master'
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
 
 ###############
 # Set the Job #
@@ -45,6 +48,5 @@ jobs:
       - name: Lint Code Base
         uses: docker://github/super-linter:v2.1.1
         env:
-          VALIDATE_ALL_CODEBASE: false
-          VALIDATE_ANSIBLE: false
+          VALIDATE_JAVASCRIPT_ES: true
 ...
